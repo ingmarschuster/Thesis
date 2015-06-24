@@ -1,0 +1,34 @@
+\chapter{Fundamental Monte Carlo Algorithms}
+
+\section{Fundamental MCMC algorithms}
+
+\subsection{Langevin Monte Carlo}
+\label{sec:lmc}
+Metropolis Adjusted Langevin Truncated Algorithm (MALTA) \cite{Roberts1996} and Hamiltonian Monte Carlo (HMC) \cite{Neal2011} are two well known sampling algorithms that make use of gradient information. In the following, we will denote the target density as $f$. Often times, this will we the posterior of a Bayesian model which can be evaluated only proportionally by multiplying the prior and likelihood at a given a point. \\
+ HMC is probably better known in the Machine Learning community, but it is notoriously complex and its description is beyond the scope of this pape. For a thorough introduction see e.g. \cite{Neal2011,Bishop2007}. The special case of HMC however, MALTA, is closely related to the algorithm proposed in this paper and a concise introduction will be given. MALTA is a variant of the Metropolis-Hastings MCMC algorithm where, given the current state of the Markov Chain $\smp'$, a proposal for a new state $\smp$ is sampled from the multivariate normal density
+$$q(\cdot | \smp') = N(\cdot | \smp'  + D(\nabla~\textrm{log}~f(\smp' )), C)$$
+where $D$ is a drift function. For consistency reasons, the MALTA variant 
+used in the evaluation section will use $D(\nabla~\textrm{log}~f(\smp' )) = \delta\nabla~\textrm{log}~f(\smp')$ for $0 \leq \delta \leq$ 1. The covariance matrix $C$ is fixed by the user prior to running the algorithm.
+The proposed new state $\smp$ is then accepted with the usual Metropolis-Hasting acceptance probability $$min\left(1,\frac{f(\smp')q(\smp | \smp')}{f(\smp)q(\smp' | \smp)}\right)$$ and recorded as a sample.
+ If the proposed state is rejected, the chain remains at state $\smp'$ (which is recorded as a sample again). The Markov Chain is ergodic with respect to $f$, i.e. the samples produced are approximately from $f$, which is guaranteed by using the Metropolis-Hastings correction. The samples can be used to estimate the expectation $H$ of some function of interest $h$ with respect to the target density $f$ using the law of large numbers as
+ $$H = \int h(x) f(x) \textrm{d}x \approx 1/N \sum_{i=1}^Nh(\smp_i)$$
+where $\smp_i$ ranges over the samples and $N$ is the number of samples.
+
+\section{Fundamental SMC algorithms}
+
+\subsection{Importance Sampling and SMC}
+\label{sec:ismc}
+Importance Sampling takes a different approach. Instead of trying to sample approximately from $f$, it samples from some proposal density $q$ instead. Rather than correcting for the change of distribution using Metropolis-Hastings, the Importance Sampling estimator simply weighs each sample $\smp$ by the so called importance weight $w(\smp) = f(\smp)/q(\smp)$. In the case where $f$ is not normalized, which is the usual case when estimating a Bayesian posterior, the self-normalized Importance Sampling estimator for $H$ given by
+
+ $$H = \int h(x) w(x) q(x) \textrm{d}x \approx \frac{1}{\sum_{i=1}^N w(\smp_i)} \sum_{i=1}^N w(\smp_i) h(\smp_i)$$
+ 
+Sequential Monte Carlo (SMC) \cite{Doucet2001a}  builds on Importance Sampling and was originally devised to sample from a sequence of target distributions. For ease of exposition, I will first consider the case where the same target distribution is used at each iteration, a special case known as Population Monte Carlo (PMC). From this, an extension to  sequence of targets is straight forward and given in Section \ref{sec:seqin} for the case of static models (i.e. not time series).
+In Population Monte Carlo, we first gather a set of $p$ samples (also called \emph{particles} in SMC) $\smp_1,\dots,\smp_p$ from proposal densities $q_1,\dots,q_p$ which are assigned weights $w(\smp_i)=f(\smp_i)/q_i(\smp_i)$. Instead of using these weighted samples directly with the Importance Sampling estimator to evaluate the integral of interest, we resample  $\smp_1,\dots,\smp_p$ with replacement according to their respective weights, adding the resulting set to a set of unweighted samples $S$. This is called Importance Resampling and produces a sample set that is approximately coming from the posterior \citep{Rubin1987}. Several methods exist for this step, the easiest being multinomial resampling. See \cite{Douc2005} for a review including some theoretical results. 
+Previous samples can now be used to construct proposal distributions for the next iteration.
+In the simplest case this could be centering a proposal distribution on a previous sample. The procedure is iterated until $S$ is deemed large enough. The integral of interest can now simply be computed by
+$$H = \int h(x) f(x) \textrm{d}x \approx 1/|S| \sum_{\smp \in S}^Nh(\smp)$$
+Moreover, the marginal likelihood $Z$ of the data (also called evidence of the model or normalizing constant of $f$) can be approximated by the formula
+$$Z \approx 1/N_w \sum_{i=1}^{N_w} w_i$$
+where $w_i$ are the weights that have been gathered from the stage before resampling and $N_w$ is the total number of weights.
+
+A major argument for Gradient IS is the ability to approximate the marginal likelihood \emph{and} the target distribution as good as or better than previous gradient-informed and/or adaptive sampling algorithms while being extremely simple to implement. For example, this opens the possibility to routinely compute Bayes factors (and thus do Bayesian Model selection) as a by-product of very  efficient posterior sampling instead of using special inference techniques geared towards only computing $Z$.

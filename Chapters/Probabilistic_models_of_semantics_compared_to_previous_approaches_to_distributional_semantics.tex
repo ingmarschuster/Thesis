@@ -1,0 +1,70 @@
+\documentclass[11pt]{article}
+\usepackage{geometry}                % See geometry.pdf to learn the layout options. There are lots.
+\geometry{a4paper}                   % ... or a4paper or a5paper or ... 
+%\geometry{landscape}                % Activate for for rotated page geometry
+%\usepackage[parfill]{parskip}    % Activate to begin paragraphs with an empty line rather than an indent
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\usepackage{apacite}
+\def\signed #1{{\leavevmode\unskip\nobreak\hfil\penalty50\hskip2em
+  \hbox{}\nobreak\hfil(#1)%
+  \parfillskip=0pt \finalhyphendemerits=0 \endgraf}}
+
+\newsavebox\mybox
+\newenvironment{aquote}[1]
+  {\savebox\mybox{#1}\begin{quote}}
+  {\signed{\usebox\mybox}\end{quote}}
+\DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+
+\title{Probabilistic Models of semantics as compared to previous approaches}
+\author{Ingmar Schuster}
+%\date{}                                           % Activate to display a given date or no date
+
+\begin{document}
+\maketitle
+%\section{}
+%\subsection{}
+
+ \begin{quote}
+It may be presumed that any two morphemes A and B having different meanings, also differ somewhere in distribution. \emph{\citeA{Harris1951}}
+\end{quote}
+
+%\section{Probability theory as an interpretable and well-founded model of semantics}
+While the terms \emph{Vector Space Semantics} and \emph{Distributional Semantics} (and many others) are used interchangeably in the literature for models inferring a vector representation of lexical meaning from co-occurrence information. While all  of these models use vectors or higher order tensors in one way or the other to represent the latent meaning of words (lexical semantics), very few if any use distributions in the statistical sense. This is surprising given the fact that researchers acknowledge the central role statistics plays in acquiring latent meaning representations \cite{Lenci2008}.
+
+From the perspective of probability theory, all data is generated from some underlying probability distribution. Probabilistic models are often constructed by careful combination of simple probability distributions to explain a more complex data-generating process, possibly by assuming latent variables (such as vectors representing latent word meaning). This is the position from which I develop a new approach to Distributional Semantics: I model word meaning and the composition of words in phrases in the probabilistic framework. Probability theory has the advantage of being a very flexible framework for model building which has been and is being extensively researched and has solid mathematical foundations. A very natural approach of inferring the probabilities for values of latent variables and parameters in probabilistic model is the application of Bayes Theorem Because of this, I use Markov Chain Monte Carlo algorithms whenever the data-generating distribution resulting from a model cannot be derived analytically, which is typically the case.
+
+One of the main open issues in distributional semantics is a model of compositionality, i.e. a model of how the meaning of individual words (such as the words \emph{aggressive} and \emph{dog}) combines in multi-word phrases (such as \emph{aggressive dog}). Previous approaches tend to do this by inferring a representation for phrases, which often are new vectors (or higher-order tensors) representing phrase meaning \cite{Baroni2010a,Guevara2010,Clarke2011,Baroni2010,Clark2008}. This is a very interpretable solution for adjective-noun phrases: the latent meaning of a noun (represented as a vector over $\mathbb{R}$) is simply modified by the latent meaning of an adjective (sometimes represented as a matrix over $\mathbb{R}$, which can be applied as a linear function to modify noun vectors). There are several problems with this. For one, interpretability breaks down as soon as other types of phrases, such as noun-verb phrases are considered (Given a latent vector representation for \emph{the man}, how does the verb \emph{run} modify this in \emph{The man runs}?). Also, consider transitive verbs such as \emph{give}, which result in phrases made up of more than two words (e.g. \emph{Lucy give me a book}). If adjectives are represented as matrices, a consequent step would be to represent transitive verbs as a higher-order tensor. However, some verbs can be used in a transitive and intransitive way (consider for example \emph{I told you the story} vs. \emph{I told you so}), so more several representations for a word would become necessary.\\
+\\
+I do away with all of these difficulties, and some that I am not discussing here, by not trying to represent the meaning of phrases. Instead, I propose to construct models which assign probabilities to phrases. This works with adjective-noun phrases: a fitted model could, for example, assign a higher probability to the adjective-noun phrase \emph{aggressive dog} as compared to the probability \emph{green dog}. Probabilities are inherently interpretable: one is more likely to see an occurrence of \emph{aggressive dog} then an occurrence of \emph{green dog}. Also, transitive verbs do not pose a problem: instead of trying to represent a phrase containing a transitive verb, we simply assign a probability to it. Phrases with transitively used verbs can easily be compared to phrases with the same verb used intransitively, just by comparing the probability assigned by a fitted model.\\
+My first approach to a model of semantics based on probability theory uses linear probabilistic matrix factorization to model two-word phrases. In the fitted model, given latent variables $z_{t_1}, z_{t_2}$ for two types $t_1, t_2$, the probability of seeing a phrase $t_1~t_2$ is proportional to $z_{t_1}^T W z_{t_2}$ for some weight matrix $W$. While this model meets the goal of assigning probabilities to phrases, it does not in principle assign probabilities to phrases consisting of more than two words. This problem is solved by my compositionality model based on Gaussian Processes. Given latent variables $z_{t_1}, z_{t_2}, \dots, z_{t_k}$ (where $k$ is variable), a Gaussian Process (GP) is a model for a function $f$ assigning a scalar output to the vector $(z^T_{t_1}, z^T_{t_2}, \dots, z^T_{t_k})^T$. By fitting the latent variables ($z_{t_l}$ for type $l$) and the GP to the actual frequency of phrases in the corpus, we can assign a probability to any multi-word phrase (up to proportionality) by evaluating $f((z^T_{t_1}, z^T_{t_2}, \dots, z^T_{t_k})^T)$ for the phrase $t_1, t_2, \dots, t_k$.\\
+\\
+My GP-based model has the advantage of being a straight-forward statistical model of semantic compositionality. While vectors representing the meaning of words are mostly inferred based on statistics, an odd tendency in literature on compositionality in distributional semantics is the use of non-statistical models. Some papers use tensor products to represent compositional meaning \cite{Widdows2008, Clark2007, Clark2008}, others are basically reviews of linear algebra \cite{Clarke2011}. While some of the previous literature uses a statistical approach to semantic compositionality, to our knowledge only the case of two word phrases has been tackled to date \cite{Guevara2010,Baroni2010a}.
+\section*{Acknowledgements}
+This position paper gained considerably by consulting the literature reviews of \citeA{Turney2010} and  especially \citeA{Lenci2008}.
+%\section{Similarity Measures}
+%- Lenci Distributional Hypothesis: The degree of semantic similarity between two linguistic expressions A and B is a function of the similarity of the linguistic contexts in which A and B can appear.
+%	- our GP-based model accounts for the importance of similarity by using similarity measures directly in the process of doing statistical inference    
+%- Similarity measures merely a post-hoc thought to compare vectors
+%    - in our approach, similarity measures play a crucial role in inferring the actual vectors by using kernels in Gaussian Processes. This results in smaller dimensionalities for vectors and can account for nonlinear relationships between vectors
+%\section{Composition of Meaning}
+%- Clark and Pulman (2007) assigned distributional meaning to sentences using the Hilbert space tensor product.
+%- Widdows and Ferraro (2008), inspired by quantum mechanics, explores several operators for modeling composition of meaning.
+%- bag of words assumption, which is overly simplistic
+%- Mitchell and Lapata (2008) propose composition models sensitive to word order.
+%	- our GP-based approach naturally incorporates word order in multiword phrases
+%- centrality notwithstanding, compositionality and the problems that it raises often remain out of the focus of mainstream distributional semantics
+%
+%Turney-Pantel
+%- emphasize Different types of matrices and how these are more important than what you do with them
+%	- term-document matrices
+%	- word-context matrices (other words, sentences, whatever as contexts)
+%	- Our approach naturally account for multi-word phrases and especially for comparing phrases 
+%	- word-context matrices (where context is other words)  and  pair-pattern matrices are not distinct in any way in our approach, the special strengths of these approaches to data representation should combine gracefully in our GP-based approach (and thus our approach accounts both for the distributional hypothethis and what Lin \& Pantel 2010 call the the extended distributional hypothesis, that patterns that co-occur with similar pairs tend to have similar meanings)
+%
+%\section{Logic}
+%- Widdows (2004) and van Rijsbergen (2004) show how disjunction, conjunction, and negation can be represented with vectors, but we do not yet know how to represent arbitrary statements in first-order predicate calculus.
+\bibliographystyle{apacite}
+\bibliography{library}
+\end{document}  

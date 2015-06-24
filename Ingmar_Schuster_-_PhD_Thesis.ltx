@@ -1,0 +1,59 @@
+\documentclass[11pt]{amsart}
+\usepackage{geometry}                % See geometry.pdf to learn the layout options. There are lots.
+\geometry{letterpaper}                   % ... or a4paper or a5paper or ... 
+%\geometry{landscape}                % Activate for for rotated page geometry
+%\usepackage[parfill]{parskip}    % Activate to begin paragraphs with an empty line rather than an indent
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+
+\title{Brief Article}
+\author{Ingmar Schuster}
+%\date{}                                           % Activate to display a given date or no date
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+\subsection{Distributional Semantics}
+\subsection{Approaches to phrase modelling in distributional semantics}
+\subsection{An approach based on probability theory}
+\begin{itemize}
+	\item Advantages of using probability theory (simplicity of model, generative perspective, no ad-hocery)
+	\item Bayesian Inference as straight forward way to fit generative models
+\end{itemize}
+\subsection{Bayesian Nonparametrics}
+\begin{itemize}
+	\item Advantage: model complexity is adjusted to the data
+\end{itemize}
+
+\section{A Linear approach: Probabilistic Matrix Factorization}
+matrix factorization paper
+
+\section{MAYBE: Extending the linear approach to a model of Classical conditioning}
+Linear approach can be interpreted as a model of classical conditioning akin to the Rescorla-Wagner model. It can be extended to allow more than one combination of cue and outcome in a similar fashion as the Rescorla-Wagner model.
+
+\section{Bayesian Nonparametric continuous priors}
+In the matrix factorization paper it becomes evident that a dimensionality-mixture for continuous latent variables would be desirable. Also, infinite-dimensional nonparametric priors have shortcomings (cf. Jeffs papers/thesis). Thus we develop our own nonparametric continuous prior.
+\section{Shortcomings of infinite-dimensional priors}
+\section{Existing techniques to sample from dimensionality-mixture models}
+Reversible Jump, evidence-based
+\section{A prior for nonparametric continuous latent variables}
+
+\section{A nonlinear approach to Matrix factorization using Gaussian Processes}
+\begin{itemize}
+\item Advantages 
+	\begin{itemize}
+		\item comparison of phrases which differing number of words possible as opposed to linear model - thanks to covariance function and matrix norm
+		\item nonlinear model means lower dimensionality for latent variables
+	\end{itemize}
+\item Problem: complex implementation
+\end{itemize}
+\subsection{Implementation for modelling directed, weighted graphs}
+Every edge contains two words (nodes) and is weighted with their cooccurence count (edge weight).
+\subsection{Implementation for modelling directed, weighted hypergraphs}
+An edge contains an arbitrary number of words (nodes) and is weighted with their cooccurence count (edge weight).
+
+\end{document}  

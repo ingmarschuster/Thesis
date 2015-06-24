@@ -1,0 +1,258 @@
+\section{Introduction: Gradient Importance Sampling}
+
+Monte Carlo methods have been developed into one of the mainstream inference methods of Bayesian Statistics and Machine Learning over the last thirty years \cite{Robert2004}. They can be used to approximate expextations with respect to posterior distributions of a Bayesian Model given data. The most widely used Monte Carlo Method for this purpose today is Markov Chain Monte Carlo (MCMC). In this approach, a Markov Chain is constructed which is ergodic with respect to the given posterior distribution.
+In parallel, a scheme for sampling from a sequence of target distributions, called Sequential Monte Carlo (SMC), has been developed \cite{Doucet2001a}. SMC has traditionally been used for inference in time series models and for online tracking applications. However, there has been a considerable amount of research on using SMC for inference in static models as well \cite{Chopin2002,DelMoral2006,Schafer2013}. In this paper, I will develop a powerful variant of SMC for static models making use of gradient information, dubbed Gradient Importance Sampling.
+
+The paper will proceed as follows. In subsection \ref{sec:lmc} I will give a short overview of the a simple well-known MCMC algorithm making use of gradient information, the Metropolis Adjusted Langevin Truncated Algorithm. In subsection \ref{sec:ismc} an exposition to Importance Sampling and SMC is given. Gradient IS and its variants  are introduced in \ref{sec:GRIS}. Related work, especially in adaptive MCMC and Importance Sampling, is discussed in Section \ref{sec:relwork}. Gradient IS is evaluated and compared against previous algorithms in Section \ref{sec:eval}. The last section concludes.
+
+
+
+
+\section{Gradient IS}
+\label{sec:GRIS}
+Gradient IS (GRIS) is a variant of Sequential Monte Carlo \cite{Doucet2001a}, or, when targeting the same density at each iteration, of its special case Population Monte Carlo \cite{Cappe2004}. GRIS accomplishes adaptivity by  fitting a covariance matrix $C_t$ to samples from the target density that have been gathered at time $t$. The proposal distribution for a new sample given an old sample $\smp'$   is then given by
+\begin{equation*}
+q_{t}(\cdot | \smp' ) = N(\cdot | \smp'  + D(t, \nabla~\textrm{log}~f(\smp' )), C_t)
+\end{equation*}
+ where $D$ is a drift function. We used $$D(t,  \nabla~\textrm{log}~f(\smp' )) = (\delta /t^{1.5})  \nabla~\textrm{log}~f(\smp' )$$ thus introducing a parameter $\delta \geq 0$ (and usually $\delta \leq 1$) which ought to be tuned for each target density. 
+To fit $C_t$ we use the parametrization \todo{How strongly does this overlap with the section on Adaptive Metropolis in the adaptive MCMC part?}
+\begin{equation*}
+C_t = \begin{cases}
+C_0 & t \leq t_0 \\
+s_d (cov(X_0,\dots, X_{t-1}) + \epsilon I)& t > t_0
+\end{cases}
+\end{equation*}
+For an initial $C_0$ and some $t_0$ and where $s_d>0$ and $\epsilon>0$ are tunable parameters. To update $C_t$ with a new sample $X_t$, we can a recursion formula 
+\begin{equation*}
+C_{t+1} = \frac{t-1}{t} C_t + \frac{s_d}{t} \left (t\bar{X}_{t-1}\bar{X}^T_{t-1} - (t+1) \bar{X}_{t}\bar{X}^T_{t} + {X}_{t}{X}^T_{t}  + \epsilon I\right )
+\end{equation*}
+Where $\bar{X}_t$ is the running average at iteration $t$ (with an obvious recursion formula) \cite{Haario2001}.
+Directly updating either the Cholesky or Eigendecomposition of $C_t$ results in significant computational savings, especially when the updates are done frequently. Both decompositions can be used to draw samples from and evaluate the density of the respective multivariate normal, both of which are prerequisites of the GRIS algorithm. A complementary method to tradeoff speed and adaptivity is to collect more than one new sample before updating. GRIS then proceeds as given in  Algorithm~\ref{algo:lis}.
+
+\begin{algorithm}[tb]
+
+\caption{Gradient IS algorithm}
+\begin{algorithmic}
+\label{algo:lis}
+   \STATE {\bfseries Input:} unnormalized density $f$, gradient $\nabla~\textrm{log}~f$, population size $p$, $p$ intial samples $S$, sample size $m$
+    \STATE {\bfseries Output:} list $S$ of $m$ samples
+   \WHILE{$len(S) < m + p$}
+   	\STATE Initialize $P = List()$
+	\STATE Initialize $W = List()$
+	%%
+	\FOR{$i=1$ {\bfseries to} $p$}
+		\STATE (a) sample $\smp' $ uniformly from last $p$ samples in $S$
+		\STATE (b) generate $\smp \sim q_{t}(\cdot | \smp' )$, append it to $P$
+		\STATE ~~~append weight $f(\smp)/q_{t}(\smp)$ to $W$
+   	\ENDFOR
+	\STATE resample $p$ values from $P$ with repl. according 
+	\STATE ~~~to weights and append samples to $S$
+	\STATE compute $C_{t+1}$
+	%%
+
+   \ENDWHILE
+
+   \STATE remove first $p$ samples from $S$
+\end{algorithmic}
+
+\end{algorithm}
+
+\subsection{Gradient IS with a sequence of target distributions}
+\label{sec:seqin}
+Instead of using the correct target distribution $f$ at every IS iteration like in PMC, it is also possible to construct a sequence of intermediate target distributions $(g_t)_{t=1}^T$ where $g_T = f$. In the existing SMC literature addressing static targets, only the samples acquired when targeting the actual distribution of interest are then used for estimating the integral $H$ \cite{DelMoral2006,Schafer2013}. This approach is very robust when compared to MCMC algorithms, as it explores the probability space better \cite{Schafer2013,Chopin2002}.\\
+One possibility for constructing a sequence of distributions is the geometric bridge defined by $g_t \propto g_0^{1-\rho_t} f^{\rho_t}$  for some initial distribution $g_0$ and where $(\rho_t)_{t=1}^T$ is an increasing sequence satisfying $\rho_T = 1$. Another is to use a mixture $g_t \propto ({1-\rho_t})g_0+ {\rho_t}f$. When $f$ is a Bayesian posterior, one can also add more data with increasing $t$, e.g. by defining the intermediate distributions as $g_t(\smp) = f(\smp|d_1,\dots,d_{\floor{\rho_t D}})$ where $D$ is the number of data points, resulting in an online inference algorithm \cite{Chopin2002}.
+
+However, when using a distribution sequence that computes the posterior density $f$ using the full dataset (such as the geometric bridge or the mixture sequence), one can reuse the intermediate samples when targeting $g_t$ for posterior estimation using a simple trick. As the value of $f$ is computed anyway for the harmonic bridge and the mixture sequence, we can just use the weight $f(\smp)/q_t(\smp)$ for posterior estimation while employing $g_t(\smp)/q_t(\smp)$ to inform future proposal distributions. This way the evaluation of $f$ (which is typically costly) is put to good use for improving the posterior estimate. To the best of my knowledge, this recycling of samples in SMC for static targets has not been reported in the literature.
+
+\section{Related work}
+\label{sec:relwork}
+
+\subsection{Adaptive Monte Carlo using ergodic stochastic processes}
+
+\todo{rewrite in light of the earlier section on adaptive MCMC}
+Adaptive MCMC algorithms use samples acquired so far in order to tune parameters of the sampling algorithm to adapt it to the  target.  which is another difference from GRIS, which uses importance weighting instead. The AM algorithm is the first adaptive MCMC algorithm and is provably ergodic wrt the target distribution $f$.
+
+Informally, adapting the Markov Kernels used in MCMC will result in an algorithm that is ergodic with respect to target $f$ in the general case as long as 
+\begin{enumerate}
+	\item all Markov kernels used are ergodic wrt target $f$ (have $f$ as their stationary distribution)
+	\item adaptation diminishes, e.g. adaptation probability $p_t$ for iteration $t$ satisfies $p_t~\rightarrow~0$ as $t~\rightarrow~\infty$.
+\end{enumerate}
+(Theorem 1 in \cite{Roberts2007}). We can still have $\sum^N_{t=1}p_t {\rightarrow} \infty$ as $N\rightarrow\infty$, i.e. infinite overall adaptation (as in \cite{Sejdinovic2013}). It is important to note that the diminishing adaptation is sufficient but not necessary. Other schemes might still be ergodic, one example being the AM algorithm, where adaptation is not diminished.
+
+\subsection{Adaptive Importance Sampling Schemes}
+
+Adaptive Importance Sampling schemes in related to SMC have mostly been trying to fit a closed-form approximation to the posterior for usage as a proposal distribution in the next iteration. In particular, previous work used optimality criteria such as minimization of KL-divergence between proposal distribution and posterior to asses the quality of the proposal distribution. After collecting new samples, D-Kernel approximations \cite{Douc2007} or Mixture distributions (such as Mixtures of Gaussians or Student-T mixtures) \cite{Cappe2008} are updated to fit the posterior better.
+In another line of research, better ways of using the produced samples have been sought. A particularly interesting approach is Adaptive Multiple Importance Sampling \cite{Cornuet2012,Marin2012}. Here, samples from previous proposal distributions are reweighted after the sampling is finished in order to reflect the overall proposal distribution used across iterations. This is achieved by simply assuming that each weighted sample is produced by a mixture over the proposal distributions used, where the mixture weight is proportional to the number of samples actually drawn from a particular proposal. This reweighting has been shown to be consistent and considerably improve consecutive estimates \cite{Marin2012}.
+
+\section{Evaluation}
+\label{sec:eval}
+For an experimental evaluation of the adaptive Gradient IS algorithm, I targeted three synthetic distributions (i.e. not posteriors based on some dataset) and one posterior of a Bayesian Logistic regression model. The synthetic distributions have the advantage that the expected value $H$ of the target is known in closed form, for the Logistic Regression dataset ground truth was estimated in a separate Monte Carlo experiment. I started the simulation at $H$ to avoid having to handle burn-in for MCMC and ran $20$ Monte Carlo simulations with $3000$ target or gradient evaluations each. If the target and its gradient are evaluated at the same point, this is counted as a single evaluation. This is justified by the fact that most of the time either likelihood or gradient calculation dominate complexity and computing the other value uses only little additional time (since factors common to both likelihood and gradient can be cached).  I compared to the AM algorithm, adaptive T-MALA, and Hamiltonian Monte Carlo \cite{Neal2011} MCMC algorithms, where I tuned the parameters to give optimal acceptance rates as reported in the literature. GRIS was tuned for low estimates of Monte Carlo variance, an information that is available in typical black-box situations (i.e. where nothing is known about the target $f$ except the information produced by the sampling algorithm). Is used the variant of GRIS that did not use a sequence of target distributions as it gave good results and was easier to implement.
+
+\subsection{Maximum squared errors and Effective Sample Size}
+Estimating  Effective Sample Size (ESS) is easy in traditional Importance Sampling and does not require establishing ground truth. Given importance weights of $N$ collected samples $(w_i)_{i=1}^N$ and their normalized version $\widehat{w}_i = w_i/\sum_{i=1}^N w_i$ we can compute ESS as 
+$$\textrm{ESS}^\textrm{IS}_N = \frac{1}{\sum_{i=1}^N(\widehat{w}_i)^2} $$
+If all the weights are the same (i.e. we have a sample coming from our target distribution), we have $\textrm{ESS}^\textrm{IS}_N = N$, whereas if only one of the weights is non-zero,  $\textrm{ESS}^\textrm{IS}_N = 1$. A necessary condition for this estimate to be valid however is that drawn importance samples are iid. For MCMC a similar estimate (under the same name) is available after establishing ground truth for an integral of interest. An exposition to this is given in \cite{Hoffman2014} whom we will follow. 
+Given a function $\targfunc$ which we want to integrate wrt the target density $\targd$, and samples $\smp_1,\dots, \smp_N$ from a Markov Chain targeting $\targd$, that follow the distribution $\propd_{MC}$ we can use the estimate
+$$\textrm{ESS}^\textrm{MC}_N = \frac{N}{1+2\sum_{i=1}^{N-1} (1-\frac{i}{N}) \acor_i^\targfunc} $$
+where $\acor_i^\targfunc$ is the autocorrelation of $\targfunc$ under $\propd_{MC}$ at lag $i$.  If the autocorrelation is exactly  $0$ at each lag (i.e. all of the samples are independent), then again $\textrm{ESS}^\textrm{MC}_N=N$, as desired.  An estimate of autocorrelation is given by
+
+$$\widehat{\acor}_i^\targfunc = \frac{1}{\Var[\targfunc(X)](N-i)} \sum_{j=i+1}^N (\targfunc(\smp_{j}) - \Expect[\targfunc(X)]) (\targfunc(\smp_{j-i}) - \Expect[\targfunc(X)])$$
+In this autocorrellation estimate we make use of the ground truth values $\Expect[\targfunc(X)]$ and $\Var[\targfunc(X)]$ which can only be estimated by a long run of some Monte Carlo method when $\targd$ is a black block (for example when it is given only proportionally as a Bayesian posterior). Now as the estimate of autocorrelation is noisy for large lags, \cite{Hoffman2014} suggests to truncate the autocorrelations at the smallest cutoff $c$ with $\acor_c^\targfunc < 0.05$, yielding the estimator
+
+$$\widehat{\textrm{ESS}}^\textrm{MC}_N = \frac{N}{1+2\sum_{i=1}^{c} (1-\frac{i}{N}) \widehat{\acor}_i^\targfunc} $$
+
+Now as $\widehat{\textrm{ESS}}^\textrm{MC}$ is a univariate measure, \cite{Girolami2011,Hoffman2014} suggest the following approach: calculate ESS for each dimension separately and take the minimum across dimensions. Because usually in a bayesian setting one is interested in estimation of variance, the suggested procedure is to do this for an estimate of both expected value and variance of $\targd$ and take the minimum of those as the final ESS estimate.
+
+Ironically, an ESS estimate does not exist for Sequential Monte Carlo when targeting the same density across iterations (the situation is different in a dynamic model with multiple targets). For one, it is not possible to use the estimate $\textrm{ESS}^\textrm{IS}$ because SMC induces dependency between samples. Also, $\textrm{ESS}^\textrm{MC}$ is not usable because the dependency structure in SMC, and thus the computation of autocorrelation, is much more complicated than in MCMC, as a sample at one iteration of the algorithm can spawn several samples in the next iteration.
+
+However, using ground truth estimates $\Var[\targfunc(X)]$ and $\Expect[\targfunc(X)]$ as $\textrm{ESS}^\textrm{MC}$ does, it is possible to reproduce the worst case properties suggested by \cite{Girolami2011,Hoffman2014}. To this end, one measures maximum squared error (MaxSE) by computing, for each Monte Carlo run, squared errors with respect to $\Var[\targfunc(X)]$ and $\Expect[\targfunc(X)]$  and taking the maximum across those and across dimensions.
+
+
+\subsection{Gaussian Grid}
+The first target was a mixture of 25 2D Gaussians with equidistant means and mixture weights depending on distance from origin, a contour plot for which is given in Figure~\ref{fig:gauss_grid_contour}. A box plot for the squared error across different numbers of target evaluations is given in Figure~\ref{fig:gauss_grid_box}, where the box ranges from 1st to 3rd quartile and whiskers extend to $1.5*\textrm{IQR}$  (interquartile range). Hamiltonian Monte Carlo (HMC) was not plotted here, because the algorithm performed much worse than the other three candidates and proper scaling was impossible.
+
+\begin{figure}[tbp]
+\begin{center}
+\begin{minipage}[t]{0.5\textwidth}
+\centering
+\includegraphics[width=0.8\textwidth]{figures/Gauss_Grid_Contour.pdf} 
+\caption{Gaussian mixture target: Contour plot}
+\label{fig:gauss_grid_contour}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.5\textwidth}
+\centering
+\includegraphics[width=0.9\textwidth]{figures/Gauss_Grid_boxplot.pdf} 
+\caption{Gaussian Mixture target: SE performance. Algorithms not shown are widely off scale.} 
+
+\label{fig:gauss_grid_box}
+\end{minipage}
+
+\end{center}
+\end{figure}
+
+For this target, the performance was very close for the adaptive algorithms. Adaptive Gradient IS exhibits smallest MSE and variance (see Figure~\ref{fig:gauss_grid_mse}), but the AM algorithm is a close second. As multimodal targets are traditionally problematic for gradient informed sampling algorithms, it is interesting to see that adapting to the posterior covariance structure of the target can help mitigate problems in this case. The particularly weak performance of HMC possibly stems from the algorithm getting stuck in different modes for different runs, explaining in particular the high variance (Figure~\ref{fig:gauss_grid_mse}). 
+
+
+
+\begin{figure}[tbp]
+\begin{center}
+\includegraphics[width=0.8\textwidth]{figures/Gauss_Grid_b2_mse_var.pdf}
+\caption{Gaussian mixture target: Squared bias, MSE and variance as a function of number of target evaluations}
+\label{fig:gauss_grid_mse}
+\end{center}
+\end{figure}
+
+\subsection{Banana}
+The 2D Banana shaped unnormalized measure was given by $f(x) = \textrm{exp}(-\frac{1}{2s}x_1^2-\frac{1}{2}(x_2-b(x_1^2-s))^2$. The measure is determined by parameters $b$ and $v$ which where set to $100$ and $0.03$, respectively (see Figure~\ref{fig:banana_contour} for a contour plot). For unimodal targets, gradient based samplers are traditionally strong, though that advantage might be irrelevant when we adapt a scale matrix for a simple random walk algorithm. As is evident from Figures~\ref{fig:banana_box} and \ref{fig:Banana_mse}, the simple AM algorithm actually is competitive with adaptive T-MALA for this target. However, adaptive Gradient IS again shows gains here when compared to the other samplers. This is particularly encouraging since  T-MALA and Gradient IS are using the exact same drift function and T-MALA adapts more parameters than Gradient IS does. If the remaining parameters of Gradient IS can be adapted automatically, further improvements might be possible.
+
+\begin{figure}[tbp]
+\begin{center}
+\begin{minipage}[t]{0.5\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/Banana_Contour.pdf} 
+\caption{Banana target: Contour plot}
+\label{fig:banana_contour}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.5\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/Banana_boxplot.pdf} 
+\caption{Banana target: SE performance} 
+
+\label{fig:banana_box}
+\end{minipage}
+
+\end{center}
+\end{figure}
+
+
+
+
+
+\begin{figure}[tbp]
+\begin{center}
+\includegraphics[width=0.8\textwidth]{figures/Banana_b2_mse_var.pdf}
+\caption{Banana target: Squared bias, MSE and variance as a function of number of target evaluations}
+\label{fig:Banana_mse}
+\end{center}
+\end{figure}
+
+%\begin{figure}[tbp]
+%\begin{center}
+%\includegraphics[width=0.5\textwidth]{figures/Banana_first_parameter_viz.png}
+%\caption{Banana target: Location of first sample coordinate for last $500$ posterior samples}
+%\label{fig:Banana_1d}
+%\end{center}
+%\end{figure}
+
+\subsection{Mixture of T distributions}
+The third target considered was a mixture of three $10$D multivariate $t$-distributions with different means, $10$ degrees of freedom and varying mixture weights. The scale matrices where drawn from an Inverse Wishart distribution with identity scale matrix and $10$ degrees of freedom, yielding mixture components with strong correlations among dimensions.  A contour of the marginal density of the last two coordinates is given in Figure~\ref{fig:t_mixt_contour}. This case was considered because $t$-distributions have heavier tails than Gaussians. As a standard rule of thumb, IS proposal distributions should have heavier tails than the target to ensure finite variance of the estimate \cite{Robert2004}. With a mixture of $t$-distributions, I wanted to experimentally check for any problems stemming from the Gaussian proposal used in all algorithms. GRIS is better when averaging squared error across dimensions (Figure \ref{fig:t_mixt_box}). Also, when when comparing maximum log squared errors GRIS is clearly an improvement over previous algorithms (Figure \ref{fig:t_mixt_mse}). 
+
+\begin{figure}[tbp]
+\begin{center}
+\begin{minipage}[t]{0.5\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/T_Mixt_Contour.pdf} 
+\caption{10 D $t$-Mixture target: Contour plot of the marginal density of the last two dimensions}
+\label{fig:t_mixt_contour}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.5\textwidth}
+\centering
+\includegraphics[width=0.8\textwidth]{figures/T_Mixt_boxplot.pdf} 
+\caption{$t$-Mixture target: SE of mean estimates, averaged across dimensions} 
+
+\label{fig:t_mixt_box}
+\end{minipage}
+
+\end{center}
+\end{figure}
+
+
+
+\begin{figure}[tbp]
+\begin{center}
+\includegraphics[width=0.5\textwidth]{figures/T_Mixture_worst.pdf}
+\caption{$t$-Mixture target: Squared bias, MSE and variance as a function of number of target evaluations}
+\label{fig:t_mixt_mse}
+\end{center}
+\end{figure}
+
+
+\subsection{German Credit Dataset: Logistic regression}
+The German Credit dataset was used with the Logistic Regression model developed in \cite{Hoffman2014}. This model exhibited a $25$D posterior distribution which allowed for a Laplace approximation. To find ground truth, I collected ordinary Importance Samples from a mixture between the Laplace Approximation and the sample approximation with slightly increased scale, a method known as defensive Importance Sampling \citep{Owen2000}. The Effective Sample Size of this approximation was over $66,000$. 
+
+
+\begin{figure}[tbp]
+\begin{center}
+\begin{minipage}[t]{0.5\textwidth}
+\centering
+\includegraphics[width=0.8\textwidth]{figures/gpmc_Credit_boxplot.pdf} 
+\caption{Logistic regression: Squared errors of mean estimate averaged across dimensions. Algorithms not shown are widely off scale.}
+\label{fig:cred_worst}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.5\textwidth}
+\centering
+\includegraphics[width=0.75\textwidth]{figures/Credit_worst.pdf} 
+\caption{Logistic regression: Maximum log SE across estimates of posterior variance and mean and across dimensions.} 
+
+\label{fig:cred_worst}
+\end{minipage}
+
+\end{center}
+\end{figure}
+
+\subsection{Evidence Estimation}
+Evidence estimates using GRIS quickly stabilized. I assesed MSE of evidence estimates for the $t$-Mixture target and the Logistic Regression model  (Figure \ref{fig:ev}). The log evidences where $-1000$ and $-504$, respectively.
+
+\begin{figure}[tbp]
+\begin{center}
+\centering
+\includegraphics[width=0.8\textwidth]{figures/evidence_mse_plot.pdf} 
+\caption{Evidence estimates}
+\label{fig:ev}
+
+\end{center}
+\end{figure}
+
+
+\section{Conclusions}
+In this paper, I presented Gradient IS, a variant of Sequential Monte Carlo. The algorithm uses gradient information and  a covariance matrix adapted to collected posterior samples to construct a multivariate normal proposal distribution for SMC with static target distributions. GRIS was shown to give very good performance in posterior sampling and provide stable estimates for the normalizing constant of the target distribution (also known as model evidence).
